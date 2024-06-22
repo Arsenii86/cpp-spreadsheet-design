@@ -1,31 +1,80 @@
-#pragma once
-
-#include "common.h"
+#include "formula.h"
 
 #include "FormulaAST.h"
 
-#include <memory>
-#include <variant>
+#include <algorithm>
+#include <cassert>
+#include <cctype>
 #include <sstream>
 
-// Формула, позволяющая вычислять и обновлять арифметическое выражение.
-// Поддерживаемые возможности:
-// * Простые бинарные операции и числа, скобки: 1+2*3, 2.5*(2+3.5/7)
-class FormulaInterface {
+using namespace std::literals;
+
+std::ostream& operator<<(std::ostream& output, FormulaError fe) {
+   const auto error_cat= fe.GetCategory();
+     switch (error_cat){
+	case(FormulaError::Category::Ref):{
+		output <<"#REF!";
+		break;
+	}
+	case(FormulaError::Category::Value):{
+		output <<"#VALUE!";
+		break;
+	}
+	case(FormulaError::Category::Arithmetic):{
+		return output << "#ARITHM!";
+		break;
+	}
+	default:
+	{
+		output << "#UNKNOW";
+		break;
+	}
+    } 
+}
+
+namespace {
+class Formula : public FormulaInterface {
 public:
-    using Value = std::variant<double, FormulaError>;
+// Реализуйте следующие методы:
+    explicit Formula(std::string expression) try
+        :ast_(ParseFormulaAST(expression)) {
+            
+    } catch (const std::exception& exc) {
+       throw FormulaException {"Uncorrect formula"};
+    } 
+    
+    Value Evaluate(const SheetInterface& sheet = *sheet_ptr_ ) const override{
+        try {  double temp = ast_.Execute(sheet);
+           return temp;
+        } catch (...) {
+            return FormulaError ("Division by zero");
+            //return FormulaError ("#ARITHM!");
+        }
+    } 
+    
+   
 
-    virtual ~FormulaInterface() = default;
+    std::string GetExpression() const override {
+      std::stringstream out;
+      ast_.PrintFormula(out);
+      return out.str();          
+}; 
 
-    // Возвращает вычисленное значение формулы либо ошибку. На данном этапе
-    // мы создали только 1 вид ошибки -- деление на 0.
-    virtual Value Evaluate() const = 0;
-
-    // Возвращает выражение, которое описывает формулу.
-    // Не содержит пробелов и лишних скобок.
-    virtual std::string GetExpression() const = 0;
+    void SetSheetPtr(Sheet*  sheet_ptr){
+	sheet_ptr_=sheet_ptr;
 };
 
-// Парсит переданное выражение и возвращает объект формулы.
-// Бросает FormulaException в случае если формула синтаксически некорректна.
-std::unique_ptr<FormulaInterface> ParseFormula(std::string expression);
+    std::vector<Position> GetCellFromFormula(){
+	return ast_ ->GetCellFromFormulaAST();
+};
+
+
+private:
+    FormulaAST ast_;
+    Sheet*  sheet_ptr_;
+};
+}  // namespace
+
+std::unique_ptr<FormulaInterface> ParseFormula(std::string expression) {
+    return std::make_unique<Formula>(std::move(expression));
+}

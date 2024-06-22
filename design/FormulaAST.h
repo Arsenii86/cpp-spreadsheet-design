@@ -17,17 +17,24 @@ class ParsingError : public std::runtime_error {
 
 class FormulaAST {
 public:
-    explicit FormulaAST(std::unique_ptr<ASTImpl::Expr> root_expr);
-    FormulaAST(FormulaAST&&) = default;
-    FormulaAST& operator=(FormulaAST&&) = default;
-    ~FormulaAST();
-
-    double Execute() const;
-    void Print(std::ostream& out) const;
-    void PrintFormula(std::ostream& out) const;
+	explicit FormulaAST(std::unique_ptr<ASTImpl::Expr> root_expr);
+	FormulaAST(FormulaAST&&);
+	FormulaAST& operator=(FormulaAST&&);
+	~FormulaAST();
+	double Execute(const SheetInterface& sheet) const{
+		root_expr_->Evaluate(sheet );
+};
+	void Print(std::ostream& out) const;
+	void PrintFormula(std::ostream& out) const; 
+	std::vector<Position> GetCellFromFormulaAST(){
+		return vector<Position>(cells_.begin(), cells_.end());
+	};
 
 private:
-    std::unique_ptr<ASTImpl::Expr> root_expr_;
+	std::unique_ptr<ASTImpl::Expr> root_expr_;
+	std::forward_list<Position> cells_;
+
+
 };
 
 FormulaAST ParseFormulaAST(std::istream& in);
